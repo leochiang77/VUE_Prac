@@ -35,7 +35,10 @@ const removeTodoItem = (title) => {
 }
 
 onBeforeMount(() => {
-  todoList.push(...JSON.parse(localStorage.getItem(StorageKey)))
+  const tempData = JSON.parse(localStorage.getItem(StorageKey))
+	if (tempData) {
+		todoList.push(...tempData)
+	}
 })
 </script>
 
