@@ -4,6 +4,11 @@
 將機器學習應用於低頻資料分析，打造自動化監控產品
 設計API及腳本，將分析結果串聯至現場機台進行自動化操作
 
+Establish a [Smart Control Center] responsible for developing and maintaining over 20 systems.
+Establish an automated process for data integration, processing, and analysis to reduce data retrieval time by 90%.
+Apply image recognition technology to defect detection, reducing the quantity and time required for interpretation by 90%.
+Apply machine learning to low-frequency data analysis to create automated monitoring products.
+Design APIs and scripts to connect analysis results to on-site machines for automated operations.
 
 產品開發
 能源管理系統: 負責前端UI/UX的開發，將機器學習導入系統進行能源分析。
@@ -11,6 +16,14 @@
 聲學監測裝置: 負責系統設計、訊號處理、模型訓練，到現場上線。實際應用於輸送設備及馬達
 Achievements : 上述產品成功打入多家公司，實質帶來數千萬元營業額
 
+[Product Development]
+Energy Management System: Develop the front-end UI/UX and incorporate machine learning into the system for energy analysis.
+Virtual-Real Integration Platform: Develop the back-end NoSQL database (Cassandra, KairosDB) and integrate the Zabbix monitoring platform.
+Acoustic Monitoring Device: Responsible for system design, signal processing, model training, and field deployment. Successfully applied in conveyance equipment and motors.
+Achievements: The above products successfully penetrated multiple enterprises, generating substantial revenue of tens of millions.
 
 證照: LEED BD+C
 擔任[美國綠建築LEED認證]專案負責人，帶領多家廠商取得金級認證
+
+Certification: LEED BD+C
+Serve as the project manager for [LEED Certification in U.S. Green Building], leading multiple companies to achieve Gold-level certification.
