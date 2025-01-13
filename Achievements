@@ -62,9 +62,23 @@ Serve as the project manager for [LEED Certification in U.S. Green Building], le
 這是一個成功的產品，賣到台積電，每年帶來數千萬的收益
 
 - 客戶的需求? 超乎客戶預期的功能
-ISO50001, 能源報表，電力的拆分
-可自行編輯網頁, 機器學習控制項
+ISO50001, 能源報表，資料收集
+資料收集平台, 可自行編輯網頁, 機器學習控制項(狀態的分群)
 
-- 程式碼組件, 客戶的交流
+- 深刻的體認: 程式碼組件, 客戶的交流
 
 ==============
+
+即使做了很多的專案，最終還是回歸到資料本身
+
+- 各廠間資料欄位不統一 (ex: 效益開始計算的時間)
+難以進行比較，落地後的效益評估
+- 報表各自呈現 (ex: 個人維護資料的角度, 每一主管想看的報表)
+主管難以統合，需要另一人來收集各廠資料
+
+- 這範圍其實很大，需要全面的考慮和技術，這是前後端所利用到的技術，每一塊其實都可以是獨立的職位，中間是我比較熟悉的, 外側大約是中等
+
+IIS -> MySQL, SQLite -> Python(Flask, FastAPI, Django, RESTfulAPI) -> JS, HTML, CSS (Vue.js)
+Docker, Postgres, Oracle, NoSQL(Cassandra, Kairosdb), C#, ASP, Nodejs, Reactjs
+Hadoop , AWS, Azure, ML, DL
+
