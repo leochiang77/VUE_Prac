@@ -65,32 +65,45 @@ The features are simple, so I didn't use a complex model. Instead, I directly bu
 Compared to using complex image processing, my experience shows. maybe add a mask or a backlight would have a good performance.
 無論做多少影像處理，不如直接加個遮罩或背光源
 
-- 效益?
-Benefits?
+- 多少的準確度才夠?
+How much accuracy is enough?
+Our accuracy can reach 98%. However, this is still not enough.So my approach is to send any photos with doubts for manual interpretation.
 98%? 99%? 只要有疑慮的都人工判讀，但對現場人員原本要判100片降低為10片
+Even so, the number of photos requiring manual interpretation can still be reduced from 100 to 10.
 
 ==============
 
 - 能源管理系統
-這是一個成功的產品，賣到台積電，每年帶來數千萬的收益
+這個產品主要協助客戶可以依循ISO50001認證標準進行能源管理
+This product primarily assists customers in implementing energy management according to the ISO 50001 standard.
+這是一個成功的產品，原因很簡單，他有賣到台積電，每年帶來數千萬的收益
+This is a successful product for a simple reason: it has been sold to TSMC, generating tens of millions in revenue each year.
+這產品的主要由多個控制項組成，我主要負責NOSQL資料庫的建立，及前端UI UX的開發
+(This product is mainly composed of multiple control elements.) I am responsible for establishing the NoSQL database and developing the UI/UX, the control elements related machine learning.
 
-- 客戶的需求? 超乎客戶預期的功能
-ISO50001, 能源報表，資料收集
-資料收集平台, 可自行編輯網頁, 機器學習控制項(狀態的分群)
+Why was this product chosen?
+- The key point is to consistently exceed customer expectations.關鍵點是不斷地超乎客戶預期
+他們想要能源報表，我們就給他可自行編輯的網頁
+They wanted energy dashborad, so we provided them with a web page that they could edit on their own.
+We can customize the data they want to see.
+他們想要機台耗電資料，我們就提供讓他們可以針對機台狀態進行分群的功能
+They wanted data on machine power consumption, so we provided a function that allows them to cluster based on the machine's status.
+Conduct comparisons of the machines.
 
-- 深刻的體認: 程式碼組件, 客戶的交流
+Of course, it is not new stuff, but these are my profound personal experiences.
+- 當然這很多人都知道，但程式碼模組化, 與客戶的交流是我的親身經驗
 
 ==============
+What I am currently doing the most is still going back to the data itself.
+那我現在做最多的，還是回到資料本身
+- 將資料定義、指標統一 (ex: 效益開始計算的時間)
+Standardize and Unify the data definitions and metrics between different factories.
 
-即使做了很多的專案，最終還是回歸到資料本身
+- 這其實不容易且範圍很大，需要不斷地溝通和全面的考量和技術
+This is actually not easy and covers a wide range; it requires constant communication, comprehensive consideration, and technology.
 
-- 各廠間資料欄位不統一 (ex: 效益開始計算的時間)
-難以進行比較，落地後的效益評估
-- 報表各自呈現 (ex: 個人維護資料的角度, 每一主管想看的報表)
-主管難以統合，需要另一人來收集各廠資料
-
-- 這範圍其實很大，需要全面的考慮和技術，這是前後端所利用到的技術，每一塊其實都可以是獨立的職位，中間是我比較熟悉的, 外側大約是中等
-
+Here are the front-end and back-end technologies I have used. Actually, each component could be an independent position.
+這是前後端所利用到的技術，每一塊其實都可以是獨立的職位，中間是我比較熟悉的, 外側大約是中等
 IIS -> MySQL, SQLite -> Python(Flask, FastAPI, Django, RESTfulAPI) -> JS, HTML, CSS (Vue.js)
 Docker, Postgres, Oracle, NoSQL(Cassandra, Kairosdb), C#, ASP, Nodejs, Reactjs
 Hadoop , AWS, Azure, ML, DL
