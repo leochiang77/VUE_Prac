@@ -30,30 +30,43 @@ Serve as the project manager for [LEED Certification in U.S. Green Building], le
 
 --------------------------------------------------
 
-這是用來傳送廢棄物的輸送機台，物品會卡在轉角處，一卡住人就需要過來處理
+這是用來傳送廢棄物的輸送機台，物品會卡在轉角處，一旦卡住了人就需要過來處理
+This is a conveyor machine used for transporting waste. Waste may get stuck at this corner. Once it gets stuck, someone needs to come over to handle it.
+So they hope to have a system that can automatically detect blockages, allowing personnel to avoid having to check regularly.
 
-- IMage? voice?
+- The first point of consideration is what to use for detection. IMage? voice?
+Deployment environment. Since it is in an open space, it will be affected by sunlight.
+Affected by the environment.
 受到陽光照射的影響,
 
-- 谁負責評斷異常?
-人, 所以要將訊號轉為更貼近實際所聽到的聲音
+- Frequency of abnormal occurrences異常發生的頻率
+In this case, it occurs once every two hours on average. it's not hard to collect error data. Supervised learning
 
-- 異常發生的頻率
-異常資料收集
+- Who is responsible for judging the anomalies?谁負責評斷異常?
+由人所評斷, 所以要將訊號轉為更貼近實際人所聽到的聲音
+It is judged by humans, so the signals need to be converted into sounds what people actually hear. 
+We tend to pay more attention to low-frequency sounds. 所以這裡我使用MFCC方法，然後接續ENSEMBLE mutiple MODEL to predict
 
 - 另外，用同樣手法參加2023年的比賽，藉咳嗽聲音來進行病症的分類，從370對中獲得第3名
-
+before last year, I used this concept to participate the competition, classifying diseases based on cough sounds, and achieved third place out of 370 entries.
 ==============
 
-瑕疵檢測, 這些照片的來源是google
+Defect detection: First of all, these photos come from Google.
+瑕疵檢測, 首先這些照片的來源是google
 
-- 最重要的是，降低雜訊, 凸顯瑕疵
-資料才是一切，無論做多少處理，不然直接加個背板或背光源
+We produce a flawless image using stitching, and then subtract the two to highlight the defect areas.
+我們用拼接的方式產出沒有瑕疵的圖片，並將兩者相減，凸顯出瑕疵的部分
 
 - Model Choose? Resnet, DenseNet, Inception
-特徵簡單，直接建立5層神經網路。工具很重要，但解決問題更重要
+特徵簡單，直接建立5層神經網路，減低系統的負擔。工具很重要，但解決問題更重要
+The features are simple, so I didn't use a complex model. Instead, I directly built a 5-layer neural network to reduce the system's burden.
+
+- In this case. the clear images is everything. 最重要的是，清楚的原圖才是一切
+Compared to using complex image processing, my experience shows. maybe add a mask or a backlight would have a good performance.
+無論做多少影像處理，不如直接加個遮罩或背光源
 
 - 效益?
+Benefits?
 98%? 99%? 只要有疑慮的都人工判讀，但對現場人員原本要判100片降低為10片
 
 ==============
