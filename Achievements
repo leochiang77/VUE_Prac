@@ -29,7 +29,17 @@ Certification: LEED BD+C
 Serve as the project manager for [LEED Certification in U.S. Green Building], leading multiple companies to achieve Gold-level certification.
 
 --------------------------------------------------
+我擔任友達軟體工程師有5年的時間，在此之前我有3年軟體產品開發的經驗。
+右側是我參加過比較長期的訓練課程，
+On the right side are the longer-term training courses I have participated in.
+大數據專班，主要是分散式系統，hadoop相關的課程
+The Big Data Program mainly focuses on distributed systems and Hadoop technology.
+AIA技術班，課程主要是ML, DL, 神經網路, 影像辨識。結訓專案是Donkey Car
+The AIA Technical Program. the courses focus on Machine Learning (ML), Deep Learning (DL), neural networks, and image recognition. The final project is Donkey Car.
 
+接下來，我會分享部分我參與過的專案
+Next, I will share some of the projects I have been involved in.
+===============
 這是用來傳送廢棄物的輸送機台，物品會卡在轉角處，一旦卡住了人就需要過來處理
 This is a conveyor machine used for transporting waste. Waste may get stuck at this corner. Once it gets stuck, someone needs to come over to handle it.
 So they hope to have a system that can automatically detect blockages, allowing personnel to avoid having to check regularly.
