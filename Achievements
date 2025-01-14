@@ -100,6 +100,8 @@ We can customize the data they want to see.
 They wanted data on machine power consumption, so we provided a function that allows them to cluster based on the machine's status.
 Conduct comparisons of the machines.
 
+這也導致我現在習慣不斷地思考下一步，什麼才是他們真正的需求
+
 Of course, it is not new stuff, but these are my profound personal experiences.
 - 當然這很多人都知道，但程式碼模組化, 與客戶的交流是我的親身經驗
 
@@ -108,6 +110,8 @@ What I am currently doing the most is still going back to the data itself.
 那我現在做最多的，還是回到資料本身
 - 將資料定義、指標統一 (ex: 效益開始計算的時間)
 Standardize and Unify the data definitions and metrics between different factories.
+
+如果有任何工廠想開始作智慧工廠，我都強烈建議先從這項目開始，因為這是無論在任何階段 資料和指標都會使用到
 
 - 這其實不容易且範圍很大，需要不斷地溝通和全面的考量和技術
 This is actually not easy and covers a wide range; it requires constant communication, comprehensive consideration, and technology.
@@ -122,3 +126,7 @@ Hadoop , AWS, Azure, ML, DL
 https://www.slidescarnival.com/
 https://www.canva.com/design/DAGcIQG73QU/52UeUJrMvUECnoaREDwchg/edit?referrer=slidescarnival
 https://www.canva.com/design/DAGcIXw0s_8/phGZleUrwV-_EyyzyzHolQ/edit?referrer=slidescarnival
+
+--------------------------------------------
+工作是面對部門還是整個工廠
+第一個接到的任務會是什麼
