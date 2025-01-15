@@ -136,9 +136,23 @@ https://www.canva.com/design/DAGcIXw0s_8/phGZleUrwV-_EyyzyzHolQ/edit?referrer=sl
 Thanks for the time to xxx me. i gonna share my basic infomation and a couple of projects i have involved in.
 
 The first page. on left side is my working experience. i have 3 years experience in software development, and i am working as software engineer in xxx since 2020. on right side is my education and log-term program i attended. Big Data program is about distributed file system such as hadoop, Spark and related technologies. AI academy the courses involved ML, DL, NN, and my final project is Donkey Car which combine image recognition with edge computing. This is a photo when I was in military duty.
-
+=====
 The first project i gonna show. there is a conveyor  machine used for trasporting waste. Waste may get stuck at this corner. Once it gets stuck, someone needs to come over to handle it. so they want to build a system to automatically detect blockages.
 so the first question i ask myself. what to use for detection. Blockage is a obvious feature. My consideration is Deployment environment. Since it is in an open space, it would be affected by sunlight. therefore, i chose voice to classify.
 Who is responsible for judging the abnormal data? it is a critical problem in this case. It is judged by humans, so the signals need to be converted into sounds what we really hear. in general, We tend to pay more attention to low-frequency sounds. therefore, i used method [mel frequency]. and built multiple models to ensemble them predict result.
 i also used similar concept to attend the competition, classifying different diseases based on coughing sounds, i got third place out of 370 entries
+=====
+This is the classic case. Defect classification. fist of all, all the pictures are from google, so there is no secrete here.
+i generated flawless image by using stitching. move clean part to cover the defect area. then, subtract two images to highlight defect. and we can observe the featues is simple, theresfore rather than using complex model(Resnet,..), i directly build 5-layer neural network to predict results. 
+Clear images is everything. Compare to using complex method to process images, add a shelter or a backlight on-site would get a better performance
+next question i have been asked many times. How much accuracy is enough? 80?90?99?, even 100 there would be somone ask me is there exception? i replied: yes, absoluted. so my approach is send any photo with doubts for manual interpretation. the benefit should be the number of interpretation reduce from 100 to 10. save time by 90%. 
+=====
+this page i wanna show a successful product i participated in . how to define it is successful. simple reason is it's been sold to TSMC and other companies, generating tens of millions NTD per year. it primarily assist customer to implement energy management according to ISO standard. i am in charge of the NoSQL database, user interface, and machine learning's control item.
+what did i learn from this process? Why is this product chosen? the key point is constantly exceed expectation of customers. they wanna dashboard, we provide them with web page they can edit on their own.
+they wanna power comsumption data to analyze, we provide them with function allow them to cluster base on machine's status.
+As a result, the customers' confidence continues to grow, and they are more willing to tell us the real demand.
+i know it is not new stuff, but it is my profound personal experience.
+i also apply this way of thinking to my development work.
 
+====
+this is the last page, After completing multiple projects, What I am currently doing is still going back to the data itself. Eventualy, these results must be presented to chairman. it is necessary to standardize and unify the data definitions and metrics between different factories. if anyone wanna step into this area, this would be the first job i strongly recommand. However, it actually is not easy, it covers wild range, require constant communication and comprehensive consideration and technology. below are the skills i uesd. from database, API design. connect backend to frontend webpage. In the end deploy on web service. I believe these capacities can bring contributions to the company
