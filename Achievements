@@ -156,4 +156,10 @@ i know it is not new stuff, but it is my profound personal experience.
 i also apply this way of thinking to my development work.
 
 ====
-this is the last page, After completing multiple projects, What I am currently doing is still going back to the data itself. Eventualy, these results must be presented to chairman. it is necessary to standardize and unify the data definitions and metrics across different factories. therefore, if anyone wanna step into this area, i strongly recommand it be the first job . However, it actually is not easy, it covers wild range, require constant communication and comprehensive consideration and technology. below are the skills i uesd. from database design, RESTful API . connect backend to frontend web page. In the end deploy on web service. I believe these capacities can bring contributions to the company
+this is the last page, After completing multiple projects, What I am currently doing is still going back to the data itself.
+Divided into two aspects, in terms of management. Ultimately, it still returns to effectiveness. it is necessary to standardize and unify the data definitions and metrics across different factories. 
+而就效益層面，原本的模式是 工程師需定期將原始資料貼到EXCEL計算，將計算結果繪圖。而現在這些工作我都用程式自動化執行並視覺化，只要打開瀏覽器，就可以看到想要的數據。概念很直觀卻非常有效
+In terms of effectiveness, the original model required engineers to regularly find raw data, paste them into Excel for calculations and create charts.
+Now, I have automated  all these tasks and visualized on web site. all they need to do is open the browser to see the desired data. 
+The concept is very straightforward yet highly effective.
+Below are the skills i uesd. from database design, RESTful API . connect backend to frontend web page. In the end deploy on web service. I believe these capacities can bring contributions to the company
