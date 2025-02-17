@@ -1,0 +1,113 @@
+main.py
+
+from a2wsgi import ASGIMiddleware
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+from router import cvdcapa
+from router import cvdcapa_chamber
+from router import sptcapa
+
+
+
+app = FastAPI(title="Array Manage Center API",version="1.0.0", swagger_ui_parameters={"syntaxHighlight": False})
+app.include_router(cvdcapa.router)
+app.include_router(cvdcapa_chamber.router)
+app.include_router(sptcapa.router)
+
+origins = [
+    "*",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+wsgi_app = ASGIMiddleware(app)
+
+if __name__ == "__main__":
+    uvicorn.run(app="main:app", host="0.0.0.0", port=28000, reload=True)
+
+-----------------------------------------------------------------------------------------------------
+router/xxx.py
+
+from typing import Optional,List
+from datetime import datetime
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from fastapi import status,APIRouter
+import json
+
+from db.mysql.cvd_daily_move import get_cvd_daily_move
+from db.FILES import get_daily_move_textarea
+
+router = APIRouter(prefix='/cvdcapa', tags=['CVD CAPA DAILY MOVE'])
+
+class ErrorMessage(BaseModel):
+    error_code:int
+    message:str
+
+class TextareaFormatOut(BaseModel):
+    FILENAME: str
+    CONTENT:str
+
+class TextareaFormatIn(BaseModel):
+    FILENAME :str
+    CONTENT :str
+
+@router.put("/daily_move_textarea", status_code=200,  response_model=List[TextareaFormatOut], responses={400:{"model":ErrorMessage}})
+async def daily_move_textarea(fileinfo:TextareaFormatIn):
+
+    try:
+        res = update_daily_move_textarea("CVD",fileinfo.FILENAME, fileinfo.CONTENT)
+
+    except Exception as e:
+        error_message = ErrorMessage(error_code=status.HTTP_400_BAD_REQUEST, message=str(e))
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=json.loads(error_message.json()))
+    
+    return res
+
+-------------------------------------------------------------------------------------------------
+
+db/Files.py
+
+import os
+import glob
+from dotenv import load_dotenv
+
+load_dotenv()
+transDict = {
+    "CVD":"CVD_FILE_LOCATION",
+    "SPT":"SPT_FILE_LOCATION"
+}
+
+def get_daily_move_textarea(unitid):
+    FILE_LOCATION = os.environ.get(transDict[unitid])
+    res=[]
+    for file in glob.glob(f"{FILE_LOCATION}/*.txt"):
+        tempDict = {}
+        with open(file, 'r',encoding='big5') as f:
+            tempDict["FILENAME"] = file.split('\\')[-1]
+            tempDict["CONTENT"] = f.read()
+        res.append(tempDict)
+
+    return res
+
+-------------------------------------------------------------------------------------------------------
+
+utils/utils.py
+
+from datetime import datetime
+
+def recordTime(func):
+    def wrapper(**kwargs):
+        start_time = datetime.now()
+        result = func(**kwargs)
+        print("--- %s seconds ---" % (datetime.now() - start_time))
+        return result
+    return wrapper
