@@ -211,3 +211,31 @@ config/boxs_info.json
         ]
     }
 }
+
+-------------------------------------------------------------
+requirement.txt
+
+matplotlib
+numpy
+opencv-contrib-python
+pillow
+scipy
+pyYaml
+packaging
+imutils
+tk
+----------------------------------------------------------------
+
+xxx.bat
+
+@echo off
+net use \\10.97.200.115\8Kimage
+cd C:\xxxxxxx\img38\Scripts
+call activate
+cd C:\xxxxxxx
+python mainxxxxxxx.py -r xxxxxx.yaml
+
+if %ERRORLEVEL% neq 0 (
+    echo Run error.
+    pause
+)
