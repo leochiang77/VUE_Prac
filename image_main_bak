@@ -1,0 +1,369 @@
+main_by_singleFile.py
+
+
+import time
+import sys
+
+from utils import main_tools, update_table
+from config import config_utils
+
+
+def load_globals():
+    global config, IMAGE_PATH, save_mode
+    config = config_utils.load_config()
+
+    # img path
+    IMAGE_PATH = config['runMode']['main_by_single_file_path']
+
+    # save
+    save_mode = config.get('saveMode', {})
+
+
+def main():
+
+    load_globals()
+
+    now_time = time.time()
+
+    folder_name = IMAGE_PATH.split('/')[0]
+    image_name = IMAGE_PATH.split('/')[1]
+
+    m_tools = main_tools.mainTools(
+        image_name=image_name, save_folder_name=folder_name)
+    try:
+        distances = m_tools.run(is_process_save=save_mode.get('process_img'),
+                                is_offset_save=save_mode.get('offset_img'), is_fill_img_save=save_mode.get('fill_img'),
+                                is_generate_box_save=save_mode.get('generate_box_img'), is_distances_img_save=save_mode.get('distances_img'))
+    except KeyError as e:
+        print(f"\nKeyError: {str(e)}")
+
+    except Exception as e:
+        distances = [0]*m_tools.model_box_num
+        print(f"\nException: {str(e)}")
+
+    # save sql
+    if save_mode.get('mysql_data'):
+        update_table.insert_data(
+            folder_name=str(folder_name), image_name=image_name, box_list=distances)
+
+    run_time = time.time() - now_time
+    print(f"\nProcessing time: {run_time:.2f} seconds.")
+
+    # cv2.imshow('Best fill Image', result_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        print(f"\nException:{str(e)}")
+        sys.exit(1)
+
+-----------------------------------------------------------------
+
+utils/main_tools.py
+
+import cv2
+import os
+import math
+import numpy as np
+
+from config import config_utils
+from utils import tools, processing_img, offset_img, fill_vacancy_img, generate_box, calculate_width
+
+
+def load_globals():
+    """
+    加載全局配置參數。
+    """
+    global config, LOCATION_TARGET_FOLDER, IMG_RESULT_FOLDER, IMG_SCALE, MAX_OFFSET_PIXELS, \
+        JSON_PATH, BOX_SIZE, SCALE_RANGE, BOX_CENTER_RADIUS, MIN_BLACK_LINE, MAX_IOU_PROP, \
+        MIN_BLACK_AREA_PROP, TRY_ERROR_TIMES, model_mode
+
+    config = config_utils.load_config()
+
+    LOCATION_TARGET_FOLDER = config['location']['target_folder']
+    IMG_RESULT_FOLDER = config['image']['save_result_folder']
+    IMG_SCALE = config['image']['scale']
+    MAX_OFFSET_PIXELS = config['image']['max_offset_pixels']
+
+    JSON_PATH = config['box']['save_box_path']
+    BOX_SIZE = config['box']['init_size']
+    SCALE_RANGE = config['box']['scale_range']
+    BOX_CENTER_RADIUS = config['box']['center_circle_radii']
+    MIN_BLACK_LINE = config['box']['min_black_line_prop']
+    MAX_IOU_PROP = config['box']['max_IOU_area_prop']
+    MIN_BLACK_AREA_PROP = config['box']['min_black_area_prop']
+    TRY_ERROR_TIMES = config['box']['try_error_times']
+
+    model_mode = config.get('model', {})
+
+
+class mainTools():
+    def __init__(self, image_name: str, save_folder_name: str, target_folder_name: any = None):
+        """
+        初始化 MainTools 類別的實例。
+
+        參數:
+            image_name (str): 圖像文件名。
+            save_folder_name (str): 儲存結果的文件夾名稱。
+            target_folder_name : 目標文件夾名稱，如果為 None，則使用全局配置中的目標文件夾（默認為 None）。
+        """
+        load_globals()
+        self.image_name = image_name
+        self.save_folder_name = save_folder_name
+
+        if target_folder_name is None:
+            target_folder_name = LOCATION_TARGET_FOLDER
+
+        self.origin_img_path = os.path.join(
+            target_folder_name, self.save_folder_name, self.image_name)
+
+        self.model_ID = tools.get_img_Model(self.origin_img_path)
+
+    def get_Model_img(self) -> np.ndarray:
+        """
+        獲取模型圖像。
+
+        返回:
+            np.ndarray: 讀取的模型圖像。
+        """
+        image_path = model_mode.get('path')+self.model_ID+'.jpg'
+
+        self.model_box_num = model_mode.get(self.model_ID)
+
+        if not os.path.exists(image_path):
+            raise KeyError(
+                f"The model image '{image_path}' not found. Please run create_model_img first."
+            )
+
+        img = cv2.imread(image_path)
+
+        return img
+
+    def process_img(self, is_save: bool = False) -> tuple:
+        """
+        處理圖像，包括去除雜訊和預處理。
+
+        參數:
+            is_save (bool): 是否儲存處理後的圖像（默認為 False）。
+
+        返回:
+            Tuple[np.ndarray, np.ndarray]: 返回處理後的清晰圖像和清除雜訊的圖像。
+        """
+
+        img = cv2.imread(self.origin_img_path)
+
+        # clear img
+        img_processor = processing_img.ProcessImg(
+            original_img=img, img_scale=IMG_SCALE)
+
+        # calculate
+        clear_img = img_processor.get_clear_img()
+        mop_img = img_processor.get_mop_img()
+
+        if is_save:
+            self._save_image(clear_img, "1-process")
+
+        return clear_img, mop_img
+
+    def shift_img(self, image: np.ndarray, no_scale_img: np.ndarray, is_save: bool = False) -> np.ndarray:
+        """
+        偏移圖像，並處理偏移圖像的視覺效果。
+
+        參數:
+            image (np.ndarray): 需要進行偏移的圖像。
+            no_scale_img (np.ndarray): 未經縮放的圖像。
+            is_save (bool): 是否儲存偏移後的圖像（默認為 False）。
+
+        返回:
+            np.ndarray: 偏移處理後的圖像。
+        """
+        # offset img
+        offset_processor = offset_img.OffsetImg(image=image, image_id=self.model_ID, json_path=JSON_PATH, max_point=self.max_point,
+                                                box_size=BOX_SIZE, min_black_line=MIN_BLACK_LINE, center_circle_radii=BOX_CENTER_RADIUS, max_offset_pixels=MAX_OFFSET_PIXELS)
+
+        offseted_image, best_total_white = offset_processor.get_shift_img(
+            no_scale_img,  img_scale=IMG_SCALE)
+
+        # draw cirlce and line
+        if is_save:
+            line_offseted_image = offset_processor.draw_circles(
+                image_rgb=offseted_image.copy())
+            self._save_image(line_offseted_image, "2-offset")
+
+        # find vaild img
+        if best_total_white < math.ceil(self.max_point/2):
+            raise Exception(f"{self.image_name} can't use.")
+
+        return offseted_image
+
+    def model_shift_img(self, offseted_image: np.ndarray, model_img: np.ndarray) -> np.ndarray:
+        """
+        偏移模型圖像。
+
+        參數:
+            offseted_image (np.ndarray): 偏移處理過的圖像。
+            model_img (np.ndarray): 模型圖像。
+
+        返回:
+            np.ndarray: 偏移處理過的模型圖像。
+        """
+        # offset model img
+        model_offset_processor = offset_img.offsetImgbyModel(
+            offseted_image, model_img, 50)
+
+        model_shifted_img = model_offset_processor.get_shift_model_img()
+
+        return model_shifted_img
+
+    def fill_img(self, offseted_image: np.ndarray, model_shifted_img: np.ndarray, is_save: bool = False) -> np.ndarray:
+        """
+        填補圖像中的空缺部分。
+
+        參數:
+            offseted_image (np.ndarray): 偏移處理過的圖像。
+            model_shifted_img (np.ndarray): 偏移處理過的模型圖像。
+            is_save (bool): 是否儲存填補後的圖像（默認為 False）。
+
+        返回:
+            np.ndarray: 填補後的圖像。
+        """
+        fill_processor = fill_vacancy_img.FillImg(
+            template_img=model_shifted_img, damaged_img=offseted_image)
+
+        result_image = fill_processor.repair_image()
+
+        if is_save:
+            self._save_image(result_image, "3-fill")
+
+        return result_image
+
+    def generate_box_details(self, image: np.ndarray, is_save: bool = False) -> tuple:
+        """
+        生成盒子的位置和大小細節。
+
+        參數:
+            image (np.ndarray): 用於生成盒子的圖像。
+            is_save (bool): 是否儲存生成的盒子圖像（默認為 False）。
+
+        返回:
+            Tuple[List[Tuple[int, int]], List[int]]: 包含兩個元素的元組：
+                - positions (List[Tuple[int, int]]): 盒子的位置列表，每個位置是 (x, y) 的元組。
+                - sizes (List[int]): 盒子的大小列表。
+        """
+        gb = generate_box.GenerateBox(image=image, image_id=self.model_ID, json_path=JSON_PATH, box_size=BOX_SIZE,
+                                      min_black_line=MIN_BLACK_LINE, center_circle_radii=BOX_CENTER_RADIUS,
+                                      box_scale_range=SCALE_RANGE, max_IOU_area_prop=MAX_IOU_PROP,
+                                      min_black_area_prop=MIN_BLACK_AREA_PROP, try_error_times=TRY_ERROR_TIMES)
+
+        positions, sizes = gb.calculate_positions(box_num=self.max_point)
+
+        if is_save:
+            line_gb_img = gb.draw_contours(positions, sizes)
+            self._save_image(line_gb_img, "4-generate_box")
+
+        return positions, sizes
+
+    def calculate_width_box(self, fill_image: np.ndarray, positions: list, sizes: list, is_save: bool = False) -> list:
+        """
+        計算盒子的寬度。
+
+        參數:
+            fill_image (np.ndarray): 填補後的圖像。
+            positions (List[Tuple[int, int]]): 盒子的位置列表，每個位置是 (x, y) 的元組。
+            sizes (List[int]): 盒子的大小列表。
+            is_save (bool): 是否儲存寬度計算結果的圖像（默認為 False）。
+
+        返回:
+            List[float]: 盒子的寬度列表。
+        """
+        cw = calculate_width.CalculateWidth(
+            fill_image=fill_image, positions=positions, sizes=sizes)
+        distances = cw.calculate_box_width()
+
+        print()
+        for index, value in enumerate(distances, start=1):
+            if index < len(distances):
+                print(f"Box[{index}]:{value}", end=", ")
+            else:
+                print(f"Box[{index}]:{value}")
+
+        if is_save:
+            contour_img = cw.draw_beside_AB()
+            self._save_image(contour_img, "5-width_box")
+
+        return distances
+
+    def _save_image(self, image: np.ndarray, folder_child_name: any = None):
+        """
+        儲存圖像到指定的文件夾。
+
+        參數:
+            image (np.ndarray): 要儲存的圖像。
+            folder_child_name (Optional[str]): 子文件夾名稱（默認為 None）。
+        """
+
+        if folder_child_name is not None:
+            f_path = os.path.join(
+                IMG_RESULT_FOLDER, self.save_folder_name, folder_child_name)
+        else:
+            f_path = os.path.join(
+                IMG_RESULT_FOLDER, self.save_folder_name)
+
+        if not os.path.exists(f_path):
+            os.makedirs(f_path)
+
+        save_path = os.path.join(f_path, self.image_name)
+        cv2.imwrite(save_path, image)
+
+    def run(self, is_process_save: bool = False, is_offset_save: bool = False, is_fill_img_save: bool = False, is_generate_box_save: bool = False, is_distances_img_save: bool = False) -> list:
+        """
+        執行整個處理流程，包括圖像處理、偏移、填補、生成盒子和計算寬度。
+
+        參數:
+            is_process_save (bool): 是否儲存處理過的圖像（默認為 False）。
+            is_offset_save (bool): 是否儲存偏移後的圖像（默認為 False）。
+            is_fill_img_save (bool): 是否儲存填補後的圖像（默認為 False）。
+            is_generate_box_save (bool): 是否儲存生成的盒子圖像（默認為 False）。
+            is_distances_img_save (bool): 是否儲存寬度計算結果的圖像（默認為 False）。
+
+        返回:
+            List[float]: 盒子的寬度列表。
+        """
+        template_img = self.get_Model_img()
+
+        try:
+            self.max_point = config['model'][self.model_ID]
+        except KeyError:
+            raise KeyError(
+                f"The model image '{self.model_ID}' not found. Please run create_model_img first.")
+
+        # processing
+        clear_img, mop_img = self.process_img(is_save=is_process_save)
+
+        # offset img
+        offseted_image = self.shift_img(
+            image=clear_img, no_scale_img=mop_img, is_save=is_offset_save)
+
+        # offset model img
+        model_offseted_img = self.model_shift_img(
+            offseted_image=offseted_image, model_img=template_img)
+
+        # fill img
+        fill_img = self.fill_img(
+            offseted_image, model_offseted_img, is_save=is_fill_img_save)
+
+        fill_img = cv2.medianBlur(fill_img, 5)
+
+        # generate and adjust box
+        positions, sizes = self.generate_box_details(
+            image=fill_img, is_save=is_generate_box_save)
+
+        # calculate width
+        distances = self.calculate_width_box(
+            fill_image=fill_img, positions=positions, sizes=sizes, is_save=is_distances_img_save)
+
+        return distances
