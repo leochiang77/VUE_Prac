@@ -62,7 +62,101 @@ if __name__ == '__main__':
         sys.exit(1)
 
 -----------------------------------------------------------------
+create_models_img.py
 
+import time
+import cv2
+import os
+import numpy as np
+
+from config import config_utils
+from utils import tools, processing_img
+
+
+def load_globals():
+    global config, MODEL_PATH, IMG_SCALE, IMG_TARGET_FOLDER, IMAGE_PATH, OFFSET_XY
+
+    config = config_utils.load_config()
+    MODEL_PATH = config['model']['path']
+    IMG_SCALE = config['image']['scale']
+    IMG_TARGET_FOLDER = config['location']['target_folder']
+    IMAGE_PATH = config['runMode']['create_models_img_path']
+    OFFSET_XY = (config['createModel']['offset_x'],
+                 config['createModel']['offset_y'])
+
+
+def offset_image(image, offset_xy):
+    offset_x, offset_y = offset_xy
+    height, width = image.shape[:2]
+
+    offset_img = np.zeros_like(image)
+
+    start_x = max(0, offset_x)
+    start_y = max(0, offset_y)
+    end_x = min(width, width + offset_x)
+    end_y = min(height, height + offset_y)
+
+    src_start_x = max(0, -offset_x)
+    src_start_y = max(0, -offset_y)
+    src_end_x = min(width, width - offset_x)
+    src_end_y = min(height, height - offset_y)
+
+    offset_img[start_y:end_y,
+               start_x:end_x] = image[src_start_y:src_end_y, src_start_x:src_end_x]
+
+    return offset_img
+
+
+def main():
+
+    load_globals()
+
+    now_time = time.time()
+
+    folder_name = IMAGE_PATH.split('/')[0]
+    image_name = IMAGE_PATH.split('/')[1]
+
+    model_ID = tools.get_img_Model(image_name)
+    model_tmp_folder = MODEL_PATH+'tmp/'
+    if not os.path.exists(model_tmp_folder):
+        os.makedirs(model_tmp_folder)
+
+    # process
+    img_path = os.path.join(IMG_TARGET_FOLDER, folder_name, image_name)
+    if not os.path.exists(img_path):
+        raise KeyError(
+            f"Image '{img_path}' not found."
+        )
+    img = cv2.imread(img_path)
+    pc = processing_img.ProcessImg(img, IMG_SCALE)
+    pc.process_images()
+    mop_img = pc.get_mop_img()
+    mop_img = offset_image(mop_img, OFFSET_XY)
+
+    offset_img = pc.scale_image(mop_img)
+
+    file_name = os.path.join(model_tmp_folder, (model_ID+'.jpg'))
+    cv2.imwrite(file_name, offset_img)
+
+    run_time = time.time() - now_time
+    print(f"Save {(model_ID+'.jpg')} to {model_tmp_folder}")
+
+    config_utils.add_model_item(model_ID, 5)
+
+    print(f"\nProcessing time: {run_time:.2f} seconds.")
+
+    return offset_img
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        print(f"Exception:{str(e)}")
+
+
+
+-----------------------------------------------------------------
 utils/main_tools.py
 
 import cv2
