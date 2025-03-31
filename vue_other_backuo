@@ -1,0 +1,293 @@
+utils/request.js
+
+import axios from "axios"
+
+const request = axios.create({
+
+    baseURL: import.meta.env.VITE_API_URI
+})
+
+export default request
+
+-----------------------------------------------
+
+.env.development
+.env.production
+
+VITE_API_URI = http://tw100043851:8091
+
+----------------------------------------------
+
+views/login/LoginIndex.vue
+
+<script setup>
+import { login } from '@/api/login'
+import { useRouter, useRoute } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { get_emp_data_fb_userid } from '@/composables/useEmp'
+const userStore = useUserStore()
+const router = useRouter()
+const route = useRoute()
+
+const isLoading = ref(false)
+const form = reactive({
+  account: '',
+  password: '',
+})
+
+const ruleFormRef = ref()
+const rules = reactive({
+  account: [{ required: true, message: '請輸入帳號', trigger: 'blur' }],
+  password: [
+    { required: true, message: '請輸入密碼', trigger: 'blur' },
+    //{ min: 6, max: 10, message: '密碼長度6~10位', trigger: 'blur' },
+  ],
+})
+
+const submitForm = async (formEl) => {
+  isLoading.value = true
+  if (!formEl) return
+  await formEl.validate((valid, fields) => {
+    if (!valid) {
+      isLoading.value = false
+      ElMessage.error('登入驗證失敗!')
+      throw new Error('登入驗證失敗!', fields)
+    }
+  })
+  const data = await login(form).then((res) => {
+    if (res.data.Validity_Type == 'success') {
+      return res.data
+    } else {
+      isLoading.value = false
+      ElMessage.error(res.data.Validity_Title)
+      throw new Error(res.data.Validity_MSG)
+    }
+  })
+
+  if (data) {
+    let authLevel = ''
+    let domainLevel = ''
+    let empInfo = await get_emp_data_fb_userid(data.User_Info['deptno'], data.User_Info['userid'])
+    if (empInfo) {
+      authLevel = empInfo['AUTH_LEVEL']
+      domainLevel = empInfo['DOMAIN_LEVEL']
+    }
+    data.User_Info['AUTH_LEVEL'] = authLevel
+    data.User_Info['DOMAIN_LEVEL'] = domainLevel
+  }
+  //console.log(data)
+  isLoading.value = false
+  ElMessage.success(data.Validity_Title)
+  userStore.saveUser(JSON.stringify(data.User_Info))
+  router.push(route.query.redirect || '/')
+}
+</script>
+<template>
+  <div class="login">
+    <el-form ref="ruleFormRef" :model="form" label-width="auto" style="max-width: 600px" size="large" label-position="top" :rules="rules">
+      <h3>登入</h3>
+      <el-form-item label="帳號" prop="account">
+        <el-input v-model="form.account" />
+      </el-form-item>
+      <el-form-item label="密碼" prop="password">
+        <el-input type="password" v-model="form.password" show-password />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="submitForm(ruleFormRef)" :loading="isLoading">Login</el-button>
+      </el-form-item>
+    </el-form>
+  </div>
+</template>
+<style scoped>
+.login {
+  height: 100vh;
+  background-color: rgb(214, 197, 197);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.el-form {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 300px;
+  margin-top: -100px;
+}
+
+.el-form-item {
+  margin-top: 20px;
+  .el-button {
+    width: 100%;
+  }
+}
+</style>
+
+
+--------------------------------------------------------------------------
+stores/user.js
+
+import { defineStore } from 'pinia'
+
+export const useUserStore = defineStore('user', () => {
+  const userJson = ref("")
+  const user = computed(() => {
+    try {
+      let res = (userJson.value || window.localStorage.getItem("user"))
+      if (res) {
+        window.localStorage.setItem("user", res)
+        res = JSON.parse(res)
+        return res
+      } else {
+        throw new Error("error")
+      }
+    } catch (error) {
+      window.localStorage.setItem("user", "")
+      ElMessage.error("驗證資訊儲存失敗 !!")
+      return ""
+    }
+  })
+  function saveUser(data) {
+    userJson.value = data
+  }
+
+  return { user, saveUser }
+})
+
+---------------------------------------------------------------------
+
+api/emp.ts
+
+import request from '@/utils/request'
+
+let basedir = '/emp'
+export const get_emp_data = (fab, empDict, action) => {
+  let URL = ''
+  if (action == 'fb_dept_gb_domainlevel') {
+    URL = `${basedir}/fb_dept_gb_domainlevel/${fab}`
+  } else if (action == 'fb_dept') {
+    URL = `${basedir}/fb_dept/${fab}`
+  } else if (action == 'ppl_info') {
+    URL = `${basedir}/ppl_info/${fab}`
+  }
+
+  return request({
+    method: 'GET',
+    url: `${URL}`,
+    params: empDict,
+  })
+}
+
+export const put_emp_data = (fab, user_id, data, action) => {
+  let URL = ''
+  if (action == 'ppl_info') {
+    URL = `${basedir}/ppl_info/${fab}/${user_id}`
+  }
+
+  return request({
+    method: 'PUT',
+    url: `${URL}`,
+    data: data,
+  })
+}
+
+export const put_domain_skill = (data, action) => {
+  let URL = ''
+  if (action == 'textarea') {
+    URL = `${basedir}/daily_move_textarea`
+  }
+  return request({
+    method: 'put',
+    url: `${URL}`,
+    data: data,
+  })
+}
+----------------------------------------------------------------------
+
+composables/useEmp.js
+
+import { get_emp_data, put_emp_data } from '@/api/emp'
+import { transFab } from '@/utils/utils'
+import { useEmpStore } from '@/stores/emp'
+const empStore = useEmpStore()
+//import moment from 'moment'
+
+const get_emp_data_fb_dept_gb_domainlevel = async (dept) => {
+  const data = await get_emp_data(
+    transFab(dept), { 'dept': dept },
+    'fb_dept_gb_domainlevel',
+  )
+    .then((res) => {
+      //console.log(res.data)
+      return res.data
+
+    })
+    .catch((msg) => {
+      console.log(msg)
+      ElMessage.error('Get EMP [fb_dept_gb_domainlevel] Data Failed !!')
+      throw new Error('Get EMP [fb_dept_gb_domainlevel] Data Failed !!')
+    })
+
+  empStore.saveEmpLevel(data)
+}
+
+const get_emp_data_fb_dept = async (dept) => {
+  const data = await get_emp_data(
+    transFab(dept), { 'dept': dept },
+    'fb_dept',
+  )
+    .then((res) => {
+      //console.log(res.data)
+      return res.data
+
+    })
+    .catch((msg) => {
+      console.log(msg)
+      ElMessage.error('Get EMP [fb_dept] Data Failed !!')
+      throw new Error('Get EMP [fb_dept] Data Failed !!')
+    })
+
+  empStore.saveEmp(data)
+}
+
+const get_emp_data_fb_userid = async (dept, user_id) => {
+  let data = await get_emp_data(
+    transFab(dept), { 'user_id': user_id },
+    'ppl_info',
+  )
+    .then((res) => {
+      //console.log(res.data)
+      return res.data
+    })
+    .catch((msg) => {
+      console.log(msg)
+      ElMessage.error('Get EMP [ppl_info] Data Failed !!')
+      throw new Error('Get EMP [ppl_info] Data Failed !!')
+    })
+
+  empStore.savePplinfo(data[0])
+  return data[0]
+}
+
+const put_emp_data_fb_userid = async (dept, user_id, dictdata) => {
+  let data = await put_emp_data(
+    transFab(dept), user_id, dictdata, 'ppl_info',
+  )
+    .then((res) => {
+      //console.log(res.data)
+      return res.data
+    })
+    .catch((msg) => {
+      console.log(msg)
+      ElMessage.error('Put EMP [ppl_info] Data Failed !!')
+      throw new Error('Put EMP [ppl_info] Data Failed !!')
+    })
+
+  return data
+}
+
+export { get_emp_data_fb_dept_gb_domainlevel, get_emp_data_fb_dept, get_emp_data_fb_userid, put_emp_data_fb_userid }
+
+------------------------------------------------------------
+
+
