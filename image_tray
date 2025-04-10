@@ -1,0 +1,745 @@
+main
+
+import cv2
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+# 建立暫存清潔指標的 Excel
+now_datetime = datetime.now().strftime('%Y_%m_%d_%H')
+info_excel = f'PM_info_{now_datetime}.xlsx'
+
+# 不存在就建立
+if os.path.exists(info_excel):
+    print('Exist')
+    info_pd = pd.read_excel(info_excel)
+else:
+    print('Null')
+    info_pd = pd.DataFrame({'datetime': [], 'tray_no': [], 'each_tray_time(sec)': [], 'clean_index': [], 'clean_cover_rate': [], 'total_time': []}, columns=['datetime', 'tray_no', 'each_tray_time(sec)', 'clean_index', 'clean_cover_rate', 'total_time'])
+
+-----------------------------
+
+# 最終 Heat map 儲存路徑
+save_path = r'D:/Anaconda3/公司專案/清tray/image_save'
+
+# video 路徑
+video_path = r'D:\專案資料\PM_清Tray\SPT300 CLEAN TRAY紀錄影片\2020-04-14\media\2020-04-14\1'
+
+# output video 路徑
+output_path = r'D:\Anaconda3\公司專案\清tray\分析完影片內容'
+
+# 初始化 Tray No
+i_tray = 0
+
+# frame 流水編號
+i_frame = 0
+
+# 時間流水號
+now_datetime = datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
+
+# 紀錄清潔開始時間
+start_time = 0
+
+
+# 畫面壓縮比例
+scale_ratio = 0.4
+
+# 顏色凸顯程度 
+color_ratio = 6
+
+# 動作最大可間隔秒數
+space_sec = 120
+
+# 每秒 frame 數
+sec_frame = 30
+
+# 最大時間 Spec
+time_max_range_value = 660
+time_max_range = f'Spec: {str(time_max_range_value)}(sec)'
+
+
+# 初始化計算時間
+time_diff = 0
+
+# 初始化 <總>作業時間
+total_time_diff = 0
+
+
+# ROI 點位
+# 外圈
+tray_outside_area =   [(287, 114), (446, 105), (507, 105), (584, 102), (662, 104), (751, 105), (843, 104), (939, 114), (1046, 118), (1116, 119), (1156, 125), (1194, 133), (1242, 134), (1244, 143), (1256, 144), (1271, 147), (1277, 177), (1269, 209), (1268, 236), (1261, 384), (1255, 510), (1240, 713), (1225, 875), (1214, 980), (898, 908), (893, 910), (893, 901), (893, 898), (849, 889), (725, 853), (590, 814), (585, 813), (586, 820), (562, 809), (482, 785), (481, 786), (443, 684), (371, 467), (333, 329), (295, 181), (285, 147), (289, 147), (287, 122), (288, 115)]
+
+# 內圈
+tray_inside_area =  [(322, 177), (406, 174), (473, 178), (547, 178), (630, 181), (718, 185), (813, 189), (917, 198), (1029, 208), (1152, 221), (1216, 226), (1219, 275), (1218, 349), (1215, 449), (1210, 551), (1206, 639), (1204, 702), (1195, 790), (1194, 850), (1191, 914), (1186, 952), (1123, 942), (1047, 923), (963, 904), (899, 886), (818, 864), (719, 836), (623, 806), (546, 781), (494, 761), (480, 737), (464, 690), (445, 641), (423, 569), (398, 499), (378, 420), (362, 366), (346, 303), (330, 231), (320, 180)]
+
+# 調整縮放座標
+tray_outside_area = np.int32(np.array(tray_outside_area) * scale_ratio)
+tray_inside_area = np.int32(np.array(tray_inside_area) * scale_ratio)
+
+# 頂點集
+# 外圈
+pts_out = np.array(tray_outside_area, np.int32)  
+pts_out = pts_out.reshape((-1, 1, 2))
+# 內圈
+pts_in = np.array(tray_inside_area, np.int32)  
+pts_in = pts_in.reshape((-1, 1, 2))
+
+
+for i_vedeo_name in os.listdir(video_path)[:1]:
+    # 抓取影片
+    cap = cv2.VideoCapture(video_path+'\\'+i_vedeo_name)
+
+    # 初始化第一張圖，為了抓取圖片大小
+    _, frame = cap.read()
+    if _ == True:
+        mask = np.zeros(frame.shape, np.uint8)
+        # 縮放
+        height, width = frame.shape[:2]
+        size = (int(width * scale_ratio), int(height * scale_ratio))
+        # 縮放
+        mask = cv2.resize(mask, size, interpolation=cv2.INTER_AREA)
+
+
+
+    # 畫多邊形在黑圖上，擷取出 tray 專屬 ROI
+    # Tray 外圈範圍
+    mask_ROI_outside = np.zeros(mask.shape, np.uint8)
+    mask_ROI_outside = cv2.fillPoly(mask_ROI_outside, [pts_out], (255, 255, 255))
+    # Tray 內圈範圍
+    mask_ROI_inside = np.zeros(mask.shape, np.uint8)
+    mask_ROI_inside = cv2.fillPoly(mask_ROI_inside, [pts_in], (255, 255, 255))
+    # Tray 最終範圍
+    mask_ROI = cv2.bitwise_xor(mask_ROI_outside, mask_ROI_inside)
+
+
+    # 計算 ROI 區域面積
+    roi_area = cv2.contourArea(tray_outside_area) - cv2.contourArea(tray_inside_area)
+
+
+
+# 初始化清潔指標
+roller_clean_index_last = 0
+# 初始化清潔時間變化次數
+roller_clean_no_change_times = 0
+    
+    
+# 抓取影片
+#cap = cv2.VideoCapture(video_path)    
+
+
+#########    儲存影片設定區    #########
+# 使用 XVID 編碼
+fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+
+# 建立 VideoWriter 物件，輸出影片至 output.mp4
+# FPS 值為 20.0，解析度為 640x360
+out = cv2.VideoWriter(f'output-{now_datetime}.mp4', fourcc, 20.0, (mask.shape[1]*2, mask.shape[0] +90))
+
+
+for ith_vedeo, i_vedeo_name in enumerate(os.listdir(video_path)):
+    print(i_vedeo_name)
+    
+    if ith_vedeo == 0:
+        # 抓取影片
+        cap = cv2.VideoCapture(video_path+'\\'+i_vedeo_name)
+
+        # 初始化第一張圖，為了抓取圖片大小
+        _, frame = cap.read()
+        if _ == True:
+            mask = np.zeros(frame.shape, np.uint8)
+            # 縮放
+            height, width = frame.shape[:2]
+            size = (int(width * scale_ratio), int(height * scale_ratio))
+            # 縮放
+            mask = cv2.resize(mask, size, interpolation=cv2.INTER_AREA)
+
+
+
+        # 畫多邊形在黑圖上，擷取出 tray 專屬 ROI
+        # Tray 外圈範圍
+        mask_ROI_outside = np.zeros(mask.shape, np.uint8)
+        mask_ROI_outside = cv2.fillPoly(mask_ROI_outside, [pts_out], (255, 255, 255))
+        # Tray 內圈範圍
+        mask_ROI_inside = np.zeros(mask.shape, np.uint8)
+        mask_ROI_inside = cv2.fillPoly(mask_ROI_inside, [pts_in], (255, 255, 255))
+        # Tray 最終範圍
+        mask_ROI = cv2.bitwise_xor(mask_ROI_outside, mask_ROI_inside)
+
+
+        # 計算 ROI 區域面積
+        roi_area = cv2.contourArea(tray_outside_area) - cv2.contourArea(tray_inside_area)
+    
+    # 抓取影片
+    cap = cv2.VideoCapture(video_path+'\\'+i_vedeo_name)
+    while (cap.isOpened()):
+        _, frame = cap.read()
+
+        if _ == True:
+
+            height, width = frame.shape[:2]
+            size = (int(width * scale_ratio), int(height * scale_ratio))
+            # 縮放
+            frame = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+
+            # 給 Contours 畫圖
+            frame_copy = frame.copy()
+
+            # 給 Heat Map 畫圖
+            frame_heat_copy = frame.copy()
+
+            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+            # for 特徵資訊紀錄在資訊圖上，用白色當底
+            info_frame = np.zeros((int(90), int(frame.shape[1]*2), 3), np.uint8) + 255
+
+
+            # Blue color
+            #low_blue = np.array([94, 150, 0])
+            #high_blue = np.array([126, 255, 100])
+            low_blue = np.array([105, 150, 0])
+            high_blue = np.array([155, 255, 100])
+            blue_mask = cv2.inRange(hsv_frame, low_blue, high_blue)
+            blue = cv2.bitwise_and(frame, frame, mask=blue_mask)
+            # 轉特徵成白色
+            #blue[blue_mask == 255] = [255, 255, 255]
+
+            # 轉灰階用於抓取過濾後特徵輪廓
+            blue_gray = cv2.cvtColor(cv2.cvtColor(blue, cv2.COLOR_HSV2RGB), cv2.COLOR_RGB2GRAY)
+
+
+            # 抓出輪廓
+            tmp = cv2.findContours(blue_gray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours = (tmp[0] if len(tmp) == 2 else tmp[1])
+
+            # 計算與時間上限的差距，越靠近顏色越紅
+            if time_diff > time_max_range_value:
+                i_color_max_time = 255
+            else:
+                i_color_max_time = int((time_diff / time_max_range_value) * 255)
+
+
+
+            for c in (contours):
+
+                # 過濾太小的雜訊
+                # 抓出面積
+                tmp_area_size = cv2.contourArea(c)
+                # 抓出周長
+                #perimeter = cv2.arcLength(c, True) 
+
+
+                if (tmp_area_size < 20) | (tmp_area_size > 600):
+                    # 只取 ROI 區域
+                    mask = cv2.bitwise_and(mask, mask_ROI)
+
+
+                else:
+                    # 返回一個 Box2D結構 rect：（最小外接矩形的中心（x，y），（寬度，高度），旋轉角度）
+                    rect = cv2.minAreaRect(c)
+                    box = cv2.boxPoints(rect)
+                    box = np.int0(box)
+
+                    # 畫 contours
+                    cv2.drawContours(frame_copy, [box], 0, (0, 255, 0), 2)
+
+
+                    # 疊圖畫 Heat Map
+                    mask_2 = np.zeros(frame.shape)
+                    mask_2 = cv2.drawContours((mask_2), [box], -1, (0, color_ratio, color_ratio), -1)
+                    mask = cv2.add(np.uint8(mask), np.uint8(mask_2))
+                    # 只取 ROI 區域
+                    mask = cv2.bitwise_and(mask, mask_ROI)
+
+
+
+            ########    計算清潔度指標    ########
+            final_heat_map_cover_area = np.sum(mask[:, :, 1]) / 2
+            roller_clean_index = np.round(final_heat_map_cover_area / roi_area, 4)
+            roller_clean_cover_rate = int(np.round(np.sum(mask[:, :, 1] != 0)/roi_area, 3) *100)
+            # 因為 pix 數目跟實際計算面積會有些微出入，避免超過100%做此篩選
+            if roller_clean_cover_rate > 100:
+                roller_clean_cover_rate = 100
+
+
+            clean_index_message = f'Clean index: {roller_clean_index}'
+            clean_cover_rate_message = f'Clean cover rate: {roller_clean_cover_rate} %'
+            # 清潔度指標、覆蓋率加在 資訊圖 上
+            cv2.putText(info_frame, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(info_frame, clean_cover_rate_message, (5, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+            # 清潔度指標、覆蓋率加在 Heat Map 上
+            cv2.putText(mask, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(mask, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+
+            ########    計算清潔時間    ########
+            # 清潔指數未超過閥值顯示清潔時間為0
+            if (roller_clean_index < 0.04):
+                time_diff_message = 'Clean time: 0.0'
+                # 清潔時間區間、時間上限加在 資訊圖 上
+                cv2.putText(info_frame, time_diff_message, (int(mask.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(info_frame, time_max_range, (int(mask.shape[1]/2), 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+                # 清潔時間區間、時間上限加在 Heat Map 上
+                cv2.putText(mask, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(mask, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (int(255-i_color_max_time), int(255-i_color_max_time), 255), 1, cv2.LINE_AA)
+
+                #print('1')
+
+            # 清潔指數超過閥值顯示且清潔時間為 0，開始記錄清潔動作時間起點    
+            if (roller_clean_index > 0.04) & (start_time == 0):
+                # 紀錄開始時間
+                #start_time = datetime.now()
+
+                # 影片加速會產生問題先用 frame去算
+                start_time = i_frame
+
+                #print('2')
+
+
+            # 開始計算清潔時間
+            if ((roller_clean_index - roller_clean_index_last) != 0) & (start_time != 0):
+                # 計算清潔時間區間 (單位: 秒)
+                #time_diff = (datetime.now() - start_time).seconds
+
+                # 影片加速會產生問題先用 frame去算
+                time_diff = (i_frame - start_time) // sec_frame
+
+
+                time_diff_message = f'Clean time: {time_diff}'
+                # 清潔時間區間、時間上限加在 資訊圖 上
+                cv2.putText(info_frame, time_diff_message, (int(mask.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(info_frame, time_max_range, (int(mask.shape[1]/2), 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+                # 清潔時間區間、時間上限加在 Heat Map 上
+                cv2.putText(mask, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(mask, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (int(255-i_color_max_time), int(255-i_color_max_time), 255), 1, cv2.LINE_AA)
+
+
+                # 更新清潔無變動數次數
+                roller_clean_no_change_times = 0
+                #print('3')
+
+
+            # 計算清潔時間後，清潔指標無變動次數，超過 30 秒，判斷完成一個段落的清潔動作    
+            if ((roller_clean_index - roller_clean_index_last) == 0) & (start_time != 0):
+                # 計算清潔指標是否無更新
+                roller_clean_no_change_times += 1 
+
+                # 還沒超過 space_sec 秒 (1 秒 30 張 frame)
+                if roller_clean_no_change_times <= (space_sec*sec_frame):
+                    i_color = int((roller_clean_no_change_times/(space_sec*sec_frame))*255)
+                    color_change = ()
+                    # 計算清潔時間區間 (單位: 秒)
+                    #time_diff = (datetime.now() - start_time).seconds
+
+                    # 影片加速會產生問題先用 frame去算
+                    time_diff = (i_frame - start_time) // sec_frame
+
+                    time_diff_message = f'Clean time: {time_diff}'
+                    # 清潔時間區間、時間上限加在 資訊圖 上
+                    cv2.putText(info_frame, time_diff_message, (int(mask.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, int(0+i_color)), 1, cv2.LINE_AA)
+                    cv2.putText(info_frame, time_max_range, (int(mask.shape[1]/2), 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, int(0+i_color_max_time)), 1, cv2.LINE_AA)
+
+                    # 清潔時間區間、時間上限加在 Heat Map 上
+                    cv2.putText(mask, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (int(255-i_color), int(255-i_color), 255), 1, cv2.LINE_AA)
+                    cv2.putText(mask, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (int(255-i_color_max_time), int(255-i_color_max_time), 255), 1, cv2.LINE_AA)
+
+
+                    #print('4_1', f'Time: {roller_clean_no_change_times}')
+
+                # 超過 space_sec 秒，不再更新時間並把時間減去 space_sec 秒還原成真正動作時間，展示結果三秒鐘
+                elif ((space_sec*sec_frame) < roller_clean_no_change_times) & (roller_clean_no_change_times <= ((space_sec+3)*sec_frame)):
+                    time_diff_message = f'Clean time: {time_diff-space_sec}'
+                    # 清潔時間區間、時間上限加在 資訊圖 上
+                    cv2.putText(info_frame, time_diff_message, (int(mask.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(info_frame, time_max_range, (int(mask.shape[1]/2), 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+                    # 清潔時間區間、時間上限加在 Heat Map 上
+                    cv2.putText(mask, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(mask, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+                    if (roller_clean_no_change_times == (space_sec*sec_frame +1)):
+                        # 更新總作業時間
+                        total_time_diff += (time_diff-space_sec)
+
+                        # 清潔相關紀錄 DataFrame
+                        now_report_datetime = datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
+                        info_pd_tmp = pd.DataFrame({'datetime': [now_report_datetime], 'tray_no': [i_tray], 'each_tray_time(sec)': [time_diff-space_sec], 'clean_index': [roller_clean_index], 'clean_cover_rate': [roller_clean_cover_rate], 'total_time': [total_time_diff]}, columns=['datetime', 'tray_no', 'each_tray_time(sec)', 'clean_index', 'clean_cover_rate', 'total_time'])
+                        # 加入原始表格
+                        info_pd = pd.concat((info_pd, info_pd_tmp), ignore_index=True)
+                        # 建立暫存清潔指標的 Excel
+                        now_datetime = datetime.now().strftime('%Y_%m_%d')
+                        info_excel = f'PM_info_{now_datetime}.xlsx'
+                        # 輸出 Excel 表格
+                        info_pd.to_excel(info_excel, index=False, columns=['datetime', 'tray_no', 'each_tray_time(sec)', 'clean_index', 'clean_cover_rate', 'total_time'])
+
+
+
+                        # 先輸出最後軌跡熱力圖
+                        mask_copy = mask.copy()
+                        mask_copy[mask_copy[:, :, 2] == 0] = [255, 255, 255]
+
+                        # 只取 ROI 區域
+                        mask_copy_2 = cv2.bitwise_and(mask_copy, mask_ROI)
+                        # 畫框
+                        cv2.polylines(mask_copy_2, [pts_out], True, (0, 0, 255))
+                        cv2.polylines(mask_copy_2, [pts_in], True, (0, 0, 255));
+
+                        # 清潔度指標、覆蓋率加在 Heat Map 上
+                        cv2.putText(mask_copy_2, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                        cv2.putText(mask_copy_2, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                        # 清潔時間區間、時間上限加在 Heat Map 上
+                        cv2.putText(mask_copy_2, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                        cv2.putText(mask_copy_2, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+                        # 儲存圖片
+                        tmp_now_time = datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + '.jpg'
+                        cv2.imencode('.jpg', mask_copy_2)[1].tofile(os.path.join(save_path, tmp_now_time))
+
+
+
+                # 重製所有相關變數
+                else:
+                    # 更新所有變數
+                    mask = np.zeros(frame.shape, np.uint8)
+                    clean_index_message = 'Clean index: 0.0'
+                    clean_cover_rate_message = f'Clean cover rate: 0 %'
+                    # 清潔度指標加在 資訊圖 上
+                    cv2.putText(info_frame, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                    cv2.putText(info_frame, clean_cover_rate_message, (5, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+                    # 清潔度指標加在 Heat Map 上
+                    cv2.putText(mask, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(mask, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+                    time_diff_message = 'Clean time: 0.0'
+                    # 清潔時間區間、時間上限加在 資訊圖 上
+                    cv2.putText(info_frame, time_diff_message, (int(mask.shape[1]/2), 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                    cv2.putText(info_frame, time_max_range, (int(mask.shape[1]/2), 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+
+                    # 清潔時間區間、時間上限加在 Heat Map 上
+                    cv2.putText(mask, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(mask, time_max_range, (250, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+                    # 重置開始時間
+                    start_time = 0
+                    # 重置清潔指標變動時間
+                    roller_clean_no_change_times = 0
+                    # 重置清潔動作時間
+                    time_diff = 0
+                    # 更新 tray No
+                    i_tray += 1
+                    #print('4_3', f'Time: {roller_clean_no_change_times}')
+
+
+            # 更新變動次數
+            roller_clean_index_last = roller_clean_index
+
+
+            # Tray 畫邊界區域
+            cv2.polylines(mask, [pts_out], True, (0, 0, 255))
+            cv2.polylines(mask, [pts_in], True, (0, 0, 255))
+
+            # 左右疊圖
+            #frame_Blue_h_concat = np.concatenate((frame, blue), axis=1)
+            box_HeatMap_h_concat = np.concatenate((frame_copy, mask), axis=1)
+
+            # 上下疊圖
+            info_box_HeatMap_v_concat = np.concatenate((info_frame, box_HeatMap_h_concat), axis=0)
+
+
+
+            # 寫入影格
+            out.write(info_box_HeatMap_v_concat)
+
+            # show 畫面
+            # 輸出編號
+            #print(i_frame, end=' ')
+            i_frame += 1
+            cv2.imshow('Box & Heat Map', info_box_HeatMap_v_concat)
+
+
+
+            # 若按下 q 鍵則離開迴圈
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                # 先輸出最後軌跡熱力圖
+                mask_copy = mask.copy()
+                mask_copy[mask_copy[:, :, 2] == 0] = [255, 255, 255]
+
+                # 只取 ROI 區域
+                mask_copy_2 = cv2.bitwise_and(mask_copy, mask_ROI)
+                # 畫框
+                cv2.polylines(mask_copy_2, [pts_out], True, (0, 0, 255))
+                cv2.polylines(mask_copy_2, [pts_in], True, (0, 0, 255));
+
+                # 清潔度指標、覆蓋率加在 Heat Map 上
+                cv2.putText(mask_copy_2, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(mask_copy_2, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                # 清潔時間區間、時間上限加在 Heat Map 上
+                cv2.putText(mask_copy_2, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(mask_copy_2, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+                # 儲存圖片
+                tmp_now_time = datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + '.jpg'
+                cv2.imencode('.jpg', mask_copy_2)[1].tofile(os.path.join(save_path, tmp_now_time))
+
+                break
+
+        else:
+            '''
+            # 先輸出最後軌跡熱力圖
+            mask_copy = mask.copy()
+            mask_copy[mask_copy[:, :, 2] == 0] = [255, 255, 255]
+
+            # 只取 ROI 區域
+            mask_copy_2 = cv2.bitwise_and(mask_copy, mask_ROI)
+            # 畫框
+            cv2.polylines(mask_copy_2, [pts_out], True, (0, 0, 255))
+            cv2.polylines(mask_copy_2, [pts_in], True, (0, 0, 255));
+
+            # 清潔度指標、覆蓋率加在 Heat Map 上
+            cv2.putText(mask_copy_2, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(mask_copy_2, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+            # 清潔時間區間、時間上限加在 Heat Map 上
+            cv2.putText(mask_copy_2, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(mask_copy_2, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+            # 儲存圖片
+            tmp_now_time = datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + '.jpg'
+            cv2.imencode('.jpg', mask_copy_2)[1].tofile(os.path.join(save_path, tmp_now_time))
+            '''
+
+            # 釋放攝影機
+            cap.release()
+            # 釋放影片編譯器
+            #out.release()
+            # 關閉所有 OpenCV 視窗
+            #cv2.destroyAllWindows()
+            
+
+'''
+# 先輸出最後軌跡熱力圖
+mask_copy = mask.copy()
+mask_copy[mask_copy[:, :, 2] == 0] = [255, 255, 255]
+
+# 只取 ROI 區域
+mask_copy_2 = cv2.bitwise_and(mask_copy, mask_ROI)
+# 畫框
+cv2.polylines(mask_copy_2, [pts_out], True, (0, 0, 255))
+cv2.polylines(mask_copy_2, [pts_in], True, (0, 0, 255));
+
+# 清潔度指標、覆蓋率加在 Heat Map 上
+cv2.putText(mask_copy_2, clean_index_message, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+cv2.putText(mask_copy_2, clean_cover_rate_message, (450, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+# 清潔時間區間、時間上限加在 Heat Map 上
+cv2.putText(mask_copy_2, time_diff_message, (5, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+cv2.putText(mask_copy_2, time_max_range, (300, int(mask.shape[0])-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1, cv2.LINE_AA)
+
+# 儲存圖片
+tmp_now_time = datetime.now().strftime('%Y_%m_%d-%H_%M_%S') + '.jpg'
+cv2.imencode('.jpg', mask_copy_2)[1].tofile(os.path.join(save_path, tmp_now_time))
+'''
+
+# 釋放攝影機
+cap.release()
+# 釋放影片編譯器
+out.release()
+# 關閉所有 OpenCV 視窗
+cv2.destroyAllWindows()
+
+
+=======================================================
+
+hsv
+
+import numpy as np
+
+import cv2
+
+scale_ratio = 0.4
+
+# 紀錄 HSV 資訊
+H_list = []
+S_list = []
+V_list = []
+
+# 紀錄 RGB 資訊
+R_list = []
+G_list = []
+B_list = []
+
+
+# 讀取圖片並縮放方便顯示
+img = cv2.imread('paintpic2.jpg')
+height, width = img.shape[:2]
+size = (int(width * scale_ratio), int(height * scale_ratio))
+# 縮放
+img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+
+# BGR轉化爲HSV
+HSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+# # 鼠標點擊響應事件
+# def getposHsv(event, x, y, flags, param):
+#     global H_list
+#     global S_list
+#     global V_list
+    
+#     if event==cv2.EVENT_LBUTTONDOWN:
+#         H_list.append(HSV[y, x][0]) 
+#         S_list.append(HSV[y, x][1])
+#         V_list.append(HSV[y, x][2])
+        
+#         print("HSV is", HSV[y, x])
+
+
+# def getposBgr(event, x, y, flags, param):
+#     global R_list
+#     global G_list
+#     global B_list
+    
+#     if event==cv2.EVENT_LBUTTONDOWN:
+#         B_list.append(img[y, x][0]) 
+#         G_list.append(img[y, x][1])
+#         R_list.append(img[y, x][2])
+        
+#         print("Bgr is", img[y, x])
+
+
+cv2.imshow("imageHSV", HSV)
+cv2.imshow('image', img)
+# cv2.setMouseCallback("imageHSV", getposHsv)
+# cv2.setMouseCallback("image", getposBgr)
+# cv2.waitKey(0)
+
+
+for i_list, i_hsv in zip((H_list, S_list, V_list), ('H', 'S', 'V')):
+    print('-'*9, i_hsv, '-'*9)
+    print('U bound:', np.max(i_list))
+    print('L bound:', np.min(i_list))
+    print('Mean:', np.mean(i_list))
+    print('Std:', np.std(i_list))
+    print('-'*20)
+    print()
+=============================================================
+
+contour
+
+import cv2
+import numpy as np
+
+# -----------------------鼠標操作相關------------------------------------------
+lsPointsChoose = []
+tpPointsChoose = []
+pointsCount = 0
+count = 0
+pointsMax = 50
+def on_mouse(event, x, y, flags, param):
+    global img, point1, point2, count, pointsMax
+    global lsPointsChoose, tpPointsChoose  # 存入選擇的點
+    global pointsCount  # 對鼠標按下的點計數
+    global img2, ROI_bymouse_flag
+    img2 = img.copy()  # 此行代碼保證每次都重新再原圖畫  避免畫多了
+    # -----------------------------------------------------------
+    #    count=count+1
+    #    print("callback_count",count)
+    # --------------------------------------------------------------
+
+    if event == cv2.EVENT_LBUTTONDOWN:  # 左鍵點擊
+        pointsCount = pointsCount + 1
+        # 感覺這裏沒有用？2018年8月25日20:06:42
+        # 爲了保存繪製的區域，畫的點稍晚清零
+        # if (pointsCount == pointsMax + 1):
+        #     pointsCount = 0
+        #     tpPointsChoose = []
+        print('pointsCount:', pointsCount)
+        point1 = (x, y)
+        print (x, y)
+        # 畫出點擊的點
+        cv2.circle(img2, point1, 10, (0, 255, 0), 2)
+
+        # 將選取的點保存到list列表裏
+        lsPointsChoose.append([x, y])  # 用於轉化爲darry 提取多邊形ROI
+        tpPointsChoose.append((x, y))  # 用於畫點
+        # ----------------------------------------------------------------------
+        # 將鼠標選的點用直線連起來
+        #print(len(tpPointsChoose))
+        for i in range(len(tpPointsChoose) - 1):
+            #print('i', i)
+            cv2.line(img2, tpPointsChoose[i], tpPointsChoose[i + 1], (0, 0, 255), 2)
+        # ----------------------------------------------------------------------
+        # ----------點擊到pointMax時可以提取去繪圖----------------
+        if (pointsCount == pointsMax):
+            # -----------繪製感興趣區域-----------
+            ROI_byMouse()
+            ROI_bymouse_flag = 1
+            lsPointsChoose = []
+
+        cv2.imshow('src', img2)
+    # -------------------------右鍵按下清除軌跡-----------------------------
+    if event == cv2.EVENT_RBUTTONDOWN:  # 右鍵點擊
+        print("right-mouse")
+        pointsCount = 0
+        tpPointsChoose = []
+        lsPointsChoose = []
+        #print(len(tpPointsChoose))
+        for i in range(len(tpPointsChoose) - 1):
+            #print('i', i)
+            cv2.line(img2, tpPointsChoose[i], tpPointsChoose[i + 1], (0, 0, 255), 2)
+        cv2.imshow('src', img2)
+        
+    return tpPointsChoose
+
+def ROI_byMouse():
+    global src, ROI, ROI_flag, mask2
+    mask = np.zeros(img.shape, np.uint8)
+    pts = np.array([lsPointsChoose], np.int32)  # pts是多邊形的頂點列表（頂點集）
+    pts = pts.reshape((-1, 1, 2))
+    # 這裏 reshape 的第一個參數爲-1, 表明這一維的長度是根據後面的維度的計算出來的。
+    # OpenCV中需要先將多邊形的頂點座標變成頂點數×1×2維的矩陣，再來繪製
+
+    # --------------畫多邊形---------------------
+    mask = cv2.polylines(mask, [pts], True, (255, 255, 255))
+    ##-------------填充多邊形---------------------
+    mask2 = cv2.fillPoly(mask, [pts], (255, 255, 255))
+    cv2.imshow('mask', mask2)
+    cv2.imwrite('mask.bmp', mask2)
+    ROI = cv2.bitwise_and(mask2, img)
+    cv2.imwrite('ROI.bmp', ROI)
+    cv2.imshow('ROI', ROI)
+
+
+# -----------------------定點ROI繪製，程序中未使用-------------------
+def fixed_ROI():
+    mask = np.zeros(img.shape, np.uint8)
+    pts = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]], np.int32)  # 頂點集
+    pts = pts.reshape((-1, 1, 2))
+    mask = cv2.polylines(mask, [pts], True, (255, 255, 255))
+    mask2 = cv2.fillPoly(mask, [pts], (255, 255, 255))
+    cv2.imshow('mask', mask2)
+    # cv2.imwrite('mask.bmp', mask2)
+    # cv2.drawContours(mask,points,-1,(255,255,255),-1)
+    ROI = cv2.bitwise_and(mask2, img)
+    cv2.imshow('ROI', ROI)
+    # cv2.imwrite('ROI.bmp', ROI)
+
+
+img = cv2.imread(r'paintpic.jpg')
+# ---------------------------------------------------------
+# --圖像預處理，設置其大小
+# height, width = img.shape[:2]
+# size = (int(width * 0.3), int(height * 0.3))
+# img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+# ------------------------------------------------------------
+ROI = img.copy()
+cv2.namedWindow('src')
+cv2.setMouseCallback('src', on_mouse)
+cv2.imshow('src', img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
