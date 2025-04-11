@@ -1,0 +1,865 @@
+connDB/connBase.py
+
+# -*- coding: utf-8 -*-
+import sqlite3
+
+"""函式功能：
+    
+    開啟sqlite通道
+
+    Parameters
+    ----------
+        dbloc :string
+            資料庫位置
+
+    Returns
+    ------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+"""
+def openConnDB(dbloc):
+    
+    conn = sqlite3.connect(dbloc)
+    cursor = conn.cursor()
+    
+    return conn, cursor
+
+"""函式功能：
+    
+    關閉sqlite通道
+
+    Parameters
+    ----------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+
+    Returns
+    ------
+        None
+"""
+def closeConnDB(conn,cursor):
+    
+    cursor.close()
+    conn.close()
+    
+"""函式功能：
+    
+    commit
+
+    Parameters
+    ----------
+        conn: object
+            sqlite通道
+
+    Returns
+    ------
+        result: boolean
+            是否成功執行
+"""
+def commitConnDB(conn):
+    
+    result = False
+    conn.commit()
+    result = True
+    return result
+    
+"""函式功能：
+    
+    複製表格schema
+
+    Parameters
+    ----------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+        oldtable :string
+            欲複製表格名稱
+        oldtable :string
+            新表格名稱
+
+    Returns
+    ------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+"""
+def copyTableSchema(conn,cursor,oldtable, newtable):
+    
+    sql = "SELECT sql FROM sqlite_master WHERE type='table' AND name='"+oldtable+"';"
+    cursor = conn.execute(sql)
+    req = cursor.fetchone()
+    cursor.execute(req[0].replace(oldtable, newtable))
+    return conn, cursor 
+
+"""函式功能：
+    
+    刪除表格
+
+    Parameters
+    ----------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+        tablename :string
+            欲刪除表格名稱
+
+    Returns
+    ------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+"""
+def dropTable(conn,cursor,tablename):
+    
+    sql = "drop table " + tablename +";"
+    cursor = conn.execute(sql)
+    return conn, cursor
+
+"""函式功能：
+    
+    取得所有表格名稱
+
+    Parameters
+    ----------
+        conn: object
+            sqlite通道
+        cursor: object
+            指針
+        tablename :string
+            欲刪除表格名稱
+
+    Returns
+    ------
+        result: object
+            table名稱
+        
+"""
+def getAllTableName(conn,cursor):
+    
+    sql = "SELECT name FROM sqlite_master WHERE type='table';"
+    cursor = conn.execute(sql)
+    result = cursor.fetchall() 
+    return result
+
+
+-----------------------------------
+
+handler/datascienceHandler.py
+
+# -*- coding: utf-8 -*-
+from app.database.sqlite.connDB.connBase import openConnDB,closeConnDB,commitConnDB,copyTableSchema,dropTable,getAllTableName
+from app.database.sqlite.connDB.connDatascience import getDatascience,getDatascienceByRule,addDatascience, updDatascience, delDatascience
+from app.serialize import datascienceSerialize
+from app.utils.utils import logErrorMsg
+from datetime import datetime,timedelta
+dbloc = "app.db"
+
+def getDatascienceHandler(tablename, logFile):
+    
+    result = {}
+    conn, cursor = openConnDB(dbloc)
+    try:
+        result = datascienceSerialize(getDatascience(conn, cursor,tablename), logFile)
+        
+    except Exception as e:  
+        logFile.error(logErrorMsg(e))
+        
+    finally:
+        closeConnDB(conn, cursor)
+        return result
+    
+def getDatascienceByRuleHandler(tablename, ruleDict, logFile):
+    
+    result = {}
+    conn, cursor = openConnDB(dbloc)
+    try:
+        result = datascienceSerialize(getDatascienceByRule(conn, cursor, ruleDict,tablename), logFile)
+        
+    except Exception as e:  
+        logFile.error(logErrorMsg(e))
+        
+    finally:
+        closeConnDB(conn, cursor)
+        return result
+
+def addDatascienceHandler(tablename, insArr, logFile):
+    
+    result = False
+    conn, cursor = openConnDB(dbloc)
+    try:
+        conn, cursor, no = addDatascience(conn, cursor, tablename, insArr)
+        result = commitConnDB(conn)
+        
+    except Exception as e:  
+        logFile.error(logErrorMsg(e))
+        
+    finally:
+        closeConnDB(conn, cursor)
+        return result
+
+def updDatascienceHandler(tablename, updCol, updVal, no,logFile):
+    
+    result = False
+    conn, cursor = openConnDB(dbloc)
+    try:
+        conn, cursor = updDatascience(conn, cursor, tablename, updCol, updVal, no)
+        result = commitConnDB(conn)
+        
+    except Exception as e:  
+        logFile.error(logErrorMsg(e))
+        
+    finally:
+        closeConnDB(conn, cursor)
+        return result
+    
+def delDatascienceHandler(tablename, no, logFile):
+    
+    result = False
+    conn, cursor = openConnDB(dbloc)
+    try:
+        conn, cursor = delDatascience(conn, cursor, tablename, no)
+        result = commitConnDB(conn)
+        
+    except Exception as e: 
+        
+        logFile.error(logErrorMsg(e))
+        
+    finally:
+        closeConnDB(conn, cursor)
+        return result
+
+----------------------------------------------------
+
+app/__init__.py
+
+# -*- coding: utf-8 -*-
+
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from config import Config
+from configparser import ConfigParser
+from app.utils.LogClass import LogObj
+from app.utils.utils import logErrorMsg
+import datetime
+import os
+
+#set config and log
+config = ConfigParser()
+config.read("D:/Project/leo/INTCFT/datascience/app/config.ini" , encoding='utf-8')
+
+datascienceFullPathName=config["datascience"]["datascienceFullPathName"]
+logFileName=config["logFile"]["LogFileName"]
+logFileName=datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d')+logFileName
+logFileSavePath = config["logFile"]["SavePath"]
+
+#init log
+if not os.path.exists(logFileSavePath): os.makedirs(logFileSavePath)
+logFile = LogObj(logFileSavePath,logFileName)
+
+try:
+    #initial flask and argument
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    app.config["JSON_AS_ASCII"] = False
+    
+    db = SQLAlchemy(app)
+
+    from app.routes import *
+    
+except Exception as e:
+    logFile.error(logErrorMsg(e))
+    logFile.closeLogFile()
+    
+
+-----------------------------------------------
+app/routes.py
+
+# -*- coding: utf-8 -*-
+import os
+import pandas as pd
+import numpy as np
+from datetime import datetime,timedelta
+from werkzeug.utils import secure_filename
+from flask import jsonify, send_from_directory, make_response
+from flask import request, render_template, flash, redirect, url_for,session
+from app import app, logFile, datascienceFullPathName
+from app.utils.utils import logErrorMsg
+from urllib.parse import quote
+from app.database.sqlite.handler.projectcountHandler import getProjectcountHandler, updProjectcountHandler, delProjectcountHandler, addProjectcountHandler
+from app.database.sqlite.handler.successrateHandler import getSuccessrateHandler, updSuccessrateHandler, delSuccessrateHandler, addSuccessrateHandler
+from app.database.sqlite.handler.sampleruleHandler import getSampleruleHandler
+from app.database.sqlite.handler.datascienceHandler import getDatascienceHandler,getDatascienceByRuleHandler,addDatascienceHandler,delDatascienceHandler,updDatascienceHandler
+curuser = {"dept":"ML7AC1","name":"江前昱","workno":"2003006"}
+
+@app.route("/")
+def index():
+    
+    title="INTCFT_DataScience"
+    return render_template("index.html",title=title)
+
+@app.route("/datamaintain")
+def datamaintain():
+    
+    return render_template("datamaintain.html")
+
+#===========================================================
+#----------------------首頁初始化---------------------
+#===========================================================
+@app.route("/getProjectcount", methods=['GET',"POST"])
+def getProjectcount():
+    
+    data={}
+    result=False
+    try:
+        if request.method == "GET":
+            
+            data = getProjectcountHandler("t_projectcount",logFile)
+            result =True
+                
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+    
+    finally:
+        return jsonify({"result":result, "data":data})
+    
+@app.route("/getSuccessrate", methods=['GET',"POST"])
+def getSuccessrate():
+    
+    data={}
+    result=False
+    try:
+        if request.method == "GET":
+            
+            data = getSuccessrateHandler("t_successrate",logFile)
+            result =True
+                
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+    
+    finally:
+        return jsonify({"result":result, "data":data})
+    
+@app.route("/getDatascience", methods=['GET',"POST"])
+def getDatascience():
+    
+    data={}
+    result=False
+    try:
+        if request.method == "GET":
+            
+            data = getDatascienceHandler("t_datascience",logFile)
+            result =True
+                
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+    
+    finally:
+        return jsonify({"result":result, "data":data})
+    
+@app.route("/getSamplerule", methods=['GET',"POST"])
+def getSamplerule():
+    
+    data={}
+    result=False
+    try:
+        if request.method == "GET":
+            
+            data = getSampleruleHandler("t_samplerule",logFile)
+            result =True
+                
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+    
+    finally:
+        return jsonify({"result":result, "data":data})
+
+#===========================================================
+#--------------------DataScience 資料維護--------------------
+#===========================================================
+@app.route("/addDataScience", methods=['POST'])
+def addDataScience():
+
+    result=False
+    msg = ""
+    tablename = "t_datascience"
+    try:
+        if request.method == "POST":
+                                      
+            weekno = request.form.get('weekno')
+            site = request.form.get('site')
+            problemdef = request.form.get('problemdef')
+            yfactor = request.form.get('yfactor')
+            sampleway = request.form.get('sampleway')
+            analysistool = request.form.get('analysistool')
+            modeleffect = request.form.get('modeleffect')
+            xfactorsearch = request.form.get('xfactorsearch')
+            inference = request.form.get('inference')
+            xfactorvalid = request.form.get('xfactorvalid')
+            classify = request.form.get('classify')
+            scheduledesc = request.form.get('scheduledesc')
+            closemanager = request.form.get('closemanager')
+            curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            
+            insArr = [weekno,site,problemdef,yfactor,sampleway,analysistool,modeleffect,xfactorsearch,inference,xfactorvalid,classify,scheduledesc,closemanager,"","", "","","", "", curtime,"2003006", curtime,"2003006"]
+            result = addDatascienceHandler(tablename,insArr,logFile)
+            if result:
+                msg="[新增紀錄命令執行成功]"
+            else:
+                msg="[新增紀錄命令執行失敗]"
+            
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[新增紀錄命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+@app.route("/delDatascience", methods=['POST'])
+def delDatascience():
+    
+    result=False
+    msg = ""
+    tablename = "t_datascience"
+    try:
+        if request.method == "POST":
+            
+            no = request.form.get('no')
+            result = delDatascienceHandler(tablename, str(no), logFile)     
+            if result:
+                msg="[紀錄刪除命令執行成功]"
+            else:
+                msg="[紀錄刪除命令執行失敗]"
+ 
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[紀錄刪除命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+@app.route("/submitEditDatascience", methods=["GET","POST"])
+def submitEditDatascience():
+    
+    result=False
+    msg = ""
+    if request.method == "POST":
+        
+        try:
+            no = request.form.get("inputno")
+            weekno = request.form.get("inputweekno")
+            site = request.form.get("inputsite")
+            yfactor = request.form.get("inputyfactor")
+            sampleway = request.form.get("inputsampleway")
+            analysistool = request.form.get("inputanalysistool")
+            modeleffect = request.form.get("inputmodeleffect")
+            problemdef = request.form.get("inputproblemdef")
+            xfactorsearch = request.form.get("inputxfactorsearch")
+            inference = request.form.get("inputinference")
+            xfactorvalid = request.form.get("inputxfactorvalid")
+            scheduledesc = request.form.get("inputscheduledesc")
+            classify = request.form.get("inputclassify")
+            closemanager = request.form.get("inputclosemanager")
+            fab6B = request.form.get("inputfab6B")
+            fab7A = request.form.get("inputfab7A")
+            fab7B = request.form.get("inputfab7B")
+            fab8A = request.form.get("inputfab8A")
+            fab8B = request.form.get("inputfab8B")
+            curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            
+            updCol =["weekno", "site", "yfactor", "sampleway", "analysistool", "modeleffect", "problemdef", "xfactorsearch"
+                        , "inference", "xfactorvalid", "scheduledesc", "classify","closemanager","fab6B","fab7A"
+                        ,"fab7B","fab8A","fab8B", "updatetime", "updateuser" ]
+            
+            updVal =[weekno, site, yfactor,sampleway, analysistool, modeleffect, problemdef, xfactorsearch
+                     , inference , xfactorvalid, scheduledesc, classify, closemanager, fab6B, fab7A
+                     , fab7B , fab8A, fab8B, curtime,"2003006"]
+            
+            result = updDatascienceHandler("t_datascience", updCol, updVal, str(no),logFile)
+            
+            if result:
+                msg="[檔案更新命令執行成功]"
+            else:
+                msg="[檔案更新命令執行失敗]"    
+
+        except Exception as e:
+            msg="[檔案更新命令執行失敗]"
+            logFile.error(logErrorMsg(e))
+        
+    return jsonify({"result":result,"msg":msg,"no":updVal})
+
+#===========================================================
+#--------------------DataScience 文件管理--------------------
+#===========================================================
+
+@app.route("/getDatascienceRecordByNo", methods=['POST'])
+def getDatascienceRecordByNo():
+    
+    data=[]
+    try:
+        if request.method == "POST":
+            no = request.form.get('no')
+            data =getDatascienceByRuleHandler("t_datascience", {"no":no}, logFile)
+            
+    except Exception as e:
+        
+        logFile.error(logErrorMsg(e))
+        
+    return jsonify(data)
+
+
+@app.route("/uploadFiles", methods=["GET","POST"])
+def uploadFiles():
+    
+    result=False
+    msg = ""
+
+    try:
+        if request.method == "POST":
+            
+            no = request.form.get('inputno')
+            if 'file' not in request.files:
+                msg="[No file part]"
+                return jsonify([{"result":result,"msg":msg}])
+            
+            uploadFileList = request.form.get('uploadFileList')
+            file = request.files['file']
+            
+            tempfilename= str(no)+'_'+file.filename
+            if os.path.exists(os.path.join(datascienceFullPathName, tempfilename)):
+                os.remove(os.path.join(datascienceFullPathName, tempfilename))
+            
+            filename =os.path.join(datascienceFullPathName, tempfilename)
+            file.save(filename)
+            
+            #塞入資料庫
+            tablename = "t_datascience"
+            curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            updCol =["reportlink", "updatetime","updateuser"]
+            updVal =[uploadFileList,curtime,"2003006"]
+            result = updDatascienceHandler(tablename, updCol, updVal, str(no),logFile)
+            if result:
+                msg="[上傳檔案命令執行成功]"
+            else:
+                msg="[上傳檔案命令執行失敗]" 
+            
+            return jsonify({"result":result,"msg":msg})
+
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[上傳檔案命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+@app.route("/downloadFiles/<filename>", methods=["GET","POST"])
+def downloadFiles(filename):
+    
+    response=""
+    try:
+        if request.method == "GET":
+            if filename:
+                
+                filenameArr = filename.split('_')
+                no = filenameArr[0]
+                countid = filenameArr[1]
+                
+                tablename = "t_datascience"
+                tempList = getDatascienceByRuleHandler(tablename, {"no":str(no)}, logFile)
+                if len(tempList)>0:
+                    
+                    tempListFileArr = tempList[0]['reportlink'].split(",")
+                    tempfilename= tempListFileArr[int(countid)-1]
+
+                    response = make_response(send_from_directory(datascienceFullPathName, tempfilename, as_attachment=True))
+                    utf_filename = quote(tempfilename.encode('utf-8'))  
+                    response.headers["Content-Disposition"] = "attachment;filename*=UTF-8''{}".format('_'.join(utf_filename.split('_')[1:]))
+                    
+                return response
+    
+    except Exception as e:
+
+        logFile.error(logErrorMsg(e))
+        
+    return response
+
+@app.route("/delFiles", methods=['POST'])
+def delFiles():
+    
+    result=False
+    msg = ""
+    
+    try:
+        tablename = "t_datascience"
+        no = request.form.get('no')
+        removeFile = request.form.get('removeFile')
+        uploadFileList = request.form.get('uploadFileList')
+        
+        curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        updCol=["reportlink", "updatetime","updateuser"]
+        updVal=[uploadFileList,curtime,"2003006"]
+        result = updDatascienceHandler(tablename, updCol, updVal, str(no),logFile)
+        
+        if os.path.exists(os.path.join(datascienceFullPathName, removeFile)):
+            os.remove(os.path.join(datascienceFullPathName, removeFile))
+            if result:
+                msg="[刪除檔案命令執行成功]"
+            else:
+                msg="[刪除檔案命令執行失敗]" 
+            
+    except Exception as e:
+        
+        logFile.error(logErrorMsg(e))
+        msg="[刪除檔案命令執行失敗]"
+          
+    return jsonify({"result":result,"msg":msg})
+
+#===========================================================
+#----------------------[資料維護]---------------------
+#===========================================================
+@app.route("/addNewRecord", methods=['POST'])
+def addNewRecord():
+    
+    result=False
+    msg = ""
+    tablename = ""
+    try:
+        if request.method == "POST":
+                                      
+            source = request.form.get('source')
+            weekno = request.form.get('weekno')
+            fab6B = request.form.get('fab6B')
+            fab7A = request.form.get('fab7A')
+            fab7B = request.form.get('fab7B')
+            fab8A = request.form.get('fab8A')
+            fab8B = request.form.get('fab8B')
+            curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            
+            if source == "projectcountTable":
+                tablename = "t_projectcount"
+            elif source == "successrateTable":
+                tablename = "t_successrate"
+            
+            if tablename == "t_projectcount":
+                result = addProjectcountHandler(tablename,[weekno, fab6B, fab7A,fab7B,fab8A, fab8B, curtime,"2003006", curtime,"2003006"],logFile)
+                if result:
+                    msg="[新增紀錄命令執行成功]"
+            elif tablename == "t_successrate":
+                result = addSuccessrateHandler(tablename,[weekno, fab6B, fab7A,fab7B,fab8A, fab8B, curtime,"2003006", curtime,"2003006"],logFile)
+                if result:
+                    msg="[新增紀錄命令執行成功]"
+            else:
+                msg="[新增紀錄命令執行失敗,無指定table]"
+            
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[新增紀錄命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+@app.route("/saveRecord", methods=['POST'])
+def saveRecord():
+    
+    result=False
+    msg = ""
+    tablename = ""
+    try:
+        if request.method == "POST":
+            
+            source = request.form.get('source')
+            objno = request.form.get('objno')
+            weekno = request.form.get('weekno')
+            fab6B = request.form.get('fab6B')
+            fab7A = request.form.get('fab7A')
+            fab7B = request.form.get('fab7B')
+            fab8A = request.form.get('fab8A')
+            fab8B = request.form.get('fab8B')
+            curtime = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            
+            if source == "projectcountTable":
+                tablename = "t_projectcount"
+            elif source == "successrateTable":
+                tablename = "t_successrate"
+            
+            updCol=["weekno","fab6B","fab7A","fab7B","fab8A","fab8B","updatetime","updateuser"]
+            updVal=[weekno,fab6B,fab7A,fab7B,fab8A,fab8B, curtime,"2003006"]
+            
+            if tablename == "t_projectcount":
+                #塞入資料庫
+                result = updProjectcountHandler(tablename, updCol, updVal, str(objno),logFile)
+                if result:
+                    msg="[紀錄更新命令執行成功]"
+            elif tablename == "t_successrate":
+                result = updSuccessrateHandler(tablename, updCol, updVal, str(objno),logFile)
+                if result:
+                    msg="[紀錄更新命令執行成功]"
+            
+            else:
+                msg="[紀錄更新命令執行失敗,無指定table]"
+            
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[紀錄更新命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+@app.route("/delRecord", methods=['POST'])
+def delRecord():
+    
+    result=False
+    msg = ""
+    tablename = ""
+    try:
+        if request.method == "POST":
+            
+            source = request.form.get('source')
+            objno = request.form.get('objno')
+            
+            if source == "projectcountTable":
+                tablename = "t_projectcount"
+            elif source == "successrateTable":
+                tablename = "t_successrate"
+            
+            if tablename == "t_projectcount":
+                result = delProjectcountHandler(tablename, str(objno), logFile)     
+                if result:
+                    msg="[紀錄刪除命令執行成功]"
+            elif tablename == "t_successrate":
+                result = delSuccessrateHandler(tablename, str(objno), logFile)     
+                if result:
+                    msg="[紀錄刪除命令執行成功]"
+            else:
+                msg="[紀錄刪除命令執行失敗,無指定table]"
+                  
+    except Exception as e:
+        result=False
+        logFile.error(logErrorMsg(e))
+        msg="[紀錄刪除命令執行失敗]"
+    
+    return jsonify({"result":result,"msg":msg})
+
+#===========================================================
+#----------------------檔案備份------------------------------
+#===========================================================
+
+@app.route("/backupSqlite", methods=['POST'])
+def backupSqlite():
+    
+    result=True
+    inputDBName = request.form.get('inputDBName')
+    
+    if inputDBName:
+        inputDBName=inputDBName+".db"
+        #result = backupSqliteDBHandler(inputDBName)
+        return jsonify([{"result":result}])
+    
+    return jsonify([{"result":result}])
+
+@app.route("/backupCSV", methods=['GET'])
+def backupCSV():
+    
+    result=True
+    #result = backupCSVDBHandler()
+    return jsonify([{"result":result}])
+
+
+def loginfo(message):
+
+    with open('log.txt', 'w') as f:
+        f.write(message)
+--------------------------------------
+
+app/serialize.py
+
+# -*- coding: utf-8 -*-
+from app.utils.utils import logErrorMsg
+
+def projectcountSerialize(data, logFile):
+    
+    def transform(item):
+        
+        item=list(item)
+        for i in range(len(item)):
+            if item[i]==None : item[i] =""
+        
+        return {
+            'no'       : item[0],
+            'weekno'       : item[1],
+            'fab6B' : item[2],
+            'fab7A' : item[3],
+            'fab7B' : item[4],
+            'fab8A' : item[5],
+            'fab8B' : item[6],
+            'updatetime' : item[7], 
+            'updateuser' : item[8],
+            'createtime' : item[9], 
+            'createuser' : item[10],
+        }
+    
+    result=[]
+    for dataItem in data:
+        
+        try:
+            result.append(transform(dataItem))
+            
+        except Exception as e:
+            logFile.error(dataItem[1]+'/'+dataItem[2]+'/'+dataItem[3])
+            logFile.error(logErrorMsg(e))
+            
+    return result
+
+---------------------------------
+
+templates/base.html
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{title}}</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+        <link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}"/>
+        <link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
+        <link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-datetimepicker.min.css') }}"/>
+        <link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='css/jquery-ui.css') }}"/> 
+        <script src="{{ url_for('static', filename='js/jquery.min.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/jquery-ui.min.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/moment-with-locales.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/bootstrap-datetimepicker.min.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/main.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/dataTool.js') }}" type="module"></script>
+        <script src="{{ url_for('static', filename='js/echarts.min.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/all.js') }}" type="text/javascript"></script>
+        <script src="{{ url_for('static', filename='js/popper.min.js') }}" type="text/javascript"></script>
+        
+    </head>
+    <body>
+        <div style="width:100%;">
+            {% include "includes/navbar.html" %}
+            {% block content%}
+            {% endblock %}
+        </div>
+    </body>
+</html>
+
+--------------------------------------
+templates/index.html
+
+{%extends 'base.html' %}
+{% block content%}
+{% endblock %}
